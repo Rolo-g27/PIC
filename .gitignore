@@ -1,0 +1,32 @@
+# Java / build
+*.class
+*.cap
+*.jar
+build/
+target/
+out/
+
+# Java Card tools / SDKs / external tools
+GlobalPlatformPro/
+GlobalPlatformPro-next/
+gpbin/
+javacard-tools/
+java_card_tools/
+javacard-sdk/
+java_card_devkit*
+*.zip
+
+# OS / editor
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Logs
+*.log
