@@ -1,30 +1,68 @@
 # PIC – Java Card Smartcard Project
 
-Projeto desenvolvido no âmbito da cadeira de PIC, com foco em Java Card, smartcards e comunicação APDU.
+Projeto desenvolvido no âmbito da cadeira de PIC, com foco em Java Card, smartcards, comunicação APDU e transporte seguro de ficheiros.
 
 ## Estado atual
 
-Atualmente existe uma applet própria instalada e funcional no cartão:
+O projeto tem atualmente duas applets principais:
 
-- `KeyManagerBaseApplet`
+### 1. KeyManagerBaseApplet
+
+Applet inicial para gestão de segredo/chave.
+
 - AID: `A00000006203010D0201`
+- Ficheiro principal: `keymanager-base/src/com/pic/keymanager/KeyManagerBaseApplet.java`
 
-A applet já suporta:
+Funcionalidades:
 
-- seleção da applet por APDU;
 - autenticação por PIN;
 - alteração de PIN;
-- carregamento de um segredo de 16 bytes;
-- armazenamento persistente do segredo;
-- consulta do estado da applet;
-- eliminação do segredo;
-- validação de operações protegidas por PIN.
+- carregamento de segredo de 16 bytes;
+- armazenamento persistente;
+- consulta de estado;
+- eliminação do segredo.
+
+### 2. SecureFileTransferApplet
+
+Applet mais recente, alinhada com a ideia atual do projeto: usar o smartcard como meio de transporte de ficheiros encriptados.
+
+- AID: `A00000006203010D0301`
+- Ficheiro principal: `secure-transfer-card/src/com/pic/transfer/SecureFileTransferApplet.java`
+
+Funcionalidades já implementadas:
+
+- autenticação por PIN;
+- alteração de PIN;
+- inicialização do armazenamento;
+- carregamento de vários ficheiros pequenos;
+- escrita de ficheiros por chunks/APDUs;
+- armazenamento persistente no cartão;
+- consulta de metadados dos ficheiros;
+- leitura/download dos ficheiros por chunks;
+- confirmação de download;
+- limpeza automática do cartão após confirmação;
+- reset manual do cartão.
+
+## Ideia atual do projeto
+
+A aplicação externa encripta os ficheiros e envia os bytes já encriptados para o cartão.
+
+O cartão:
+
+1. recebe os ficheiros;
+2. guarda-os de forma persistente;
+3. protege o acesso por PIN;
+4. permite o download no destino;
+5. apaga os ficheiros após confirmação de download.
 
 ## Estrutura principal
 
 ```text
-keymanager-base/
-├── src/com/pic/keymanager/KeyManagerBaseApplet.java
-├── build/
-└── scripts/
-EOD
+PIC/
+├── keymanager-base/
+│   └── src/com/pic/keymanager/KeyManagerBaseApplet.java
+├── secure-transfer-card/
+│   └── src/com/pic/transfer/SecureFileTransferApplet.java
+├── docs/
+│   └── COMO_CORRER_CARTAO.md
+└── README.md
