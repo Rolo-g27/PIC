@@ -28,6 +28,7 @@ Applet mais recente, alinhada com a ideia atual do projeto: usar o smartcard com
 
 - AID: `A00000006203010D0301`
 - Ficheiro principal: `secure-transfer-card/src/com/pic/transfer/SecureFileTransferApplet.java`
+- Protocolo APDU: `docs/APDU_PROTOCOL.md`
 
 Funcionalidades já implementadas:
 
@@ -36,6 +37,7 @@ Funcionalidades já implementadas:
 - inicialização do armazenamento;
 - carregamento de vários ficheiros pequenos;
 - escrita de ficheiros por chunks/APDUs;
+- cancelamento de upload parcial;
 - armazenamento persistente no cartão;
 - consulta de metadados dos ficheiros;
 - leitura/download dos ficheiros por chunks;

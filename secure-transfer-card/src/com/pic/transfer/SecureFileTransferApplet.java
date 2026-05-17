@@ -11,6 +11,20 @@ public final class SecureFileTransferApplet extends Applet {
 
     private static final byte APP_CLA = (byte) 0x80;
 
+    // 0x10 GET_STATUS: returns [pinValidated, state, fileCount, maxFiles]
+    // 0x11 GET_VERSION: returns [major, minor, maxFiles, maxPages, pinSupported]
+    // 0x20 VERIFY_PIN: data = 4-byte PIN
+    // 0x22 CHANGE_PIN: data = new 4-byte PIN, requires validated PIN
+    // 0x30 INIT_STORE: starts a new upload session, clears previous data
+    // 0x31 ADD_FILE_HEADER: data = [nameLen][name][fileSize:2]
+    // 0x32 WRITE_CHUNK: data = up to CHUNK_SIZE bytes
+    // 0x33 FINALIZE_FILE: closes current file
+    // 0x34 FINALIZE_STORE: moves state to READY
+    // 0x35 ABORT_STORE: cancels current upload and clears partial data
+    // 0x40 GET_FILE_INFO: P1 = file index
+    // 0x50 READ_CHUNK: P1 = file index, P2 = chunk index
+    // 0x60 CONFIRM_DOWNLOAD: clears files after successful download
+    // 0x70 WIPE_CARD: manual full clear
     private static final byte INS_GET_STATUS       = (byte) 0x10;
     private static final byte INS_GET_VERSION      = (byte) 0x11;
     private static final byte INS_VERIFY_PIN       = (byte) 0x20;
@@ -21,6 +35,7 @@ public final class SecureFileTransferApplet extends Applet {
     private static final byte INS_WRITE_CHUNK      = (byte) 0x32;
     private static final byte INS_FINALIZE_FILE    = (byte) 0x33;
     private static final byte INS_FINALIZE_STORE   = (byte) 0x34;
+    private static final byte INS_ABORT_STORE      = (byte) 0x35;
 
     private static final byte INS_GET_FILE_INFO    = (byte) 0x40;
     private static final byte INS_READ_CHUNK       = (byte) 0x50;
@@ -40,7 +55,7 @@ public final class SecureFileTransferApplet extends Applet {
     private static final short PAGE_SIZE = (short) 4096;
     private static final byte MAX_PAGES = (byte) 12; // 12 * 4096 = 49152 bytes
 
-    private static final short READ_CHUNK_SIZE = (short) 200;
+    private static final short CHUNK_SIZE = (short) 200;
 
     private static final short SW_PIN_REQUIRED = (short) 0x6982;
     private static final short SW_PIN_BLOCKED = (short) 0x6983;
@@ -170,6 +185,11 @@ public final class SecureFileTransferApplet extends Applet {
             case INS_FINALIZE_STORE:
                 requirePin();
                 finalizeStore();
+                return;
+
+            case INS_ABORT_STORE:
+                requirePin();
+                abortStore();
                 return;
 
             case INS_GET_FILE_INFO:
@@ -355,7 +375,7 @@ public final class SecureFileTransferApplet extends Applet {
 
         short lc = unsigned(buffer[ISO7816.OFFSET_LC]);
 
-        if (lc <= (short) 0 || lc > READ_CHUNK_SIZE) {
+        if (lc <= (short) 0 || lc > CHUNK_SIZE) {
             ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
         }
 
@@ -396,6 +416,11 @@ public final class SecureFileTransferApplet extends Applet {
         }
 
         state = STATE_READY;
+        userPin.reset();
+    }
+
+    private void abortStore() {
+        wipeCard();
         userPin.reset();
     }
 
@@ -451,7 +476,7 @@ public final class SecureFileTransferApplet extends Applet {
         }
 
         short remaining = (short) (fileSize - offset);
-        short len = remaining > READ_CHUNK_SIZE ? READ_CHUNK_SIZE : remaining;
+        short len = remaining > CHUNK_SIZE ? CHUNK_SIZE : remaining;
 
         readFromStorage(index, offset, buffer, (short) 0, len);
 
@@ -473,7 +498,7 @@ public final class SecureFileTransferApplet extends Applet {
         short i = (short) 0;
 
         while (i < chunkIndex) {
-            offset = (short) (offset + READ_CHUNK_SIZE);
+            offset = (short) (offset + CHUNK_SIZE);
             i++;
         }
 
