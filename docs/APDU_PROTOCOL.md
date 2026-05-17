@@ -18,9 +18,9 @@ PIN inicial de demonstracao:
 
 ## Modelo de cifra
 
-A aplicacao externa cifra os ficheiros com uma chave simetrica e envia para o cartao os bytes ja cifrados.
+A aplicação externa cifra os ficheiros com uma chave simétrica e envia para o cartão os bytes já cifrados.
 
-O cartao nao calcula a cifra nesta versao. A applet guarda bytes cifrados, devolve bytes cifrados no download e apaga os dados depois de `CONFIRM_DOWNLOAD`.
+O cartão não calcula a cifra nesta versão. A applet apenas guarda bytes cifrados, devolve bytes cifrados no download e apaga os dados depois de `CONFIRM_DOWNLOAD`.
 
 ## Limites
 
@@ -143,12 +143,45 @@ A applet permite 3 tentativas de PIN.
 
 | Tentativa | PIN enviado | Resposta | Significado |
 |---:|---|---|---|
-| 1.ª errada | `200000000` | `63C2` | PIN errado, 2 tentativas restantes |
+| 1.ª errada | `00000000` | `63C2` | PIN errado, 2 tentativas restantes |
 | 2.ª errada | `00000000` | `63C1` | PIN errado, 1 tentativa restante |
 | 3.ª errada | `00000000` | `6983` | PIN bloqueado |
 | PIN correto após bloqueio | `01020304` | `6983` | PIN continua bloqueado |
 
 Na versão atual da applet não existe comando administrativo para desbloquear o PIN. Em testes, a recuperação é feita apagando e reinstalando a applet.
+
+
+## Validação física no cartão
+
+A versão atual foi testada num cartão físico ACOSJ v2.04.
+
+Testes validados:
+
+- Instalação da applet com `MAX_FILES = 7`, `MAX_FILE_SIZE = 10240` e `MAX_PAGES = 18`.
+- `GET_VERSION` devolveu `0100071201`.
+- `GET_STATUS` inicial devolveu `00000007`.
+- Upload simples de um ficheiro pequeno.
+- Upload de 7 ficheiros pequenos.
+- Upload de 1 ficheiro com 10240 bytes.
+- Rejeição de ficheiro com 10241 bytes:
+  - `ADD_FILE_HEADER` com tamanho `0x2801` devolveu `6A80`.
+- Upload de 7 ficheiros de 10240 bytes no mesmo carregamento.
+- `GET_STATUS` após upload dos 7 ficheiros devolveu `01020707`.
+- Leitura de metadados do primeiro ficheiro:
+  - `f1.bin`, 10240 bytes.
+  - resposta: `0666312E62696E2800`.
+- Leitura de metadados do último ficheiro:
+  - `f7.bin`, 10240 bytes.
+  - resposta: `0666372E62696E2800`.
+- Leitura do primeiro chunk do primeiro ficheiro:
+  - 200 bytes de `0x41`.
+- Leitura do último chunk do último ficheiro:
+  - 40 bytes de `0x47`.
+- `CONFIRM_DOWNLOAD` limpou o cartão.
+- Estado final após descarga:
+  - `00000007`.
+
+Isto valida o requisito de guardar 7 ficheiros de 10 KB e despejar o cartão após confirmação de download.
 
 
 ## Exemplos APDU
