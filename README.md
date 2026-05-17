@@ -41,6 +41,7 @@ Funcionalidades já implementadas:
 - armazenamento persistente no cartão;
 - consulta de metadados dos ficheiros;
 - leitura/download dos ficheiros por chunks;
+- eliminação seletiva de ficheiros;
 - confirmação de download;
 - limpeza automática do cartão após confirmação;
 - reset manual do cartão.

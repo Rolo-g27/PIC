@@ -54,6 +54,7 @@ PIN inicial de demonstracao:
 | GET_FILE_INFO | 0x40 | indice | 0x00 | nenhum | `[nameLen][name][fileSize:2]` |
 | READ_CHUNK | 0x50 | indice | chunk | nenhum | ate 200 bytes |
 | CONFIRM_DOWNLOAD | 0x60 | 0x00 | 0x00 | nenhum | sem dados |
+| DELETE_FILE | 0x61 | indice | 0x00 | nenhum | sem dados |
 | WIPE_CARD | 0x70 | 0x00 | 0x00 | nenhum | sem dados |
 
 Todos os comandos sensiveis exigem PIN validado, exceto `GET_STATUS`, `GET_VERSION` e `VERIFY_PIN`.
@@ -67,7 +68,9 @@ Todos os comandos sensiveis exigem PIN validado, exceto `GET_STATUS`, `GET_VERSI
    - enviar `ADD_FILE_HEADER`;
    - enviar um ou mais `WRITE_CHUNK`;
    - enviar `FINALIZE_FILE`.
-5. Enviar `FINALIZE_STORE`.
+5. Enviar `FINALIZE_STORE`. 
+
+Depois de `FINALIZE_STORE`, a applet faz reset da sessão PIN. Para ler metadados ou conteúdo de ficheiros, a aplicação externa deve enviar novamente `VERIFY_PIN`.
 
 Se algum passo do upload falhar, a aplicacao externa deve enviar `ABORT_STORE` e pedir nova tentativa ao utilizador.
 
@@ -81,6 +84,29 @@ Se algum passo do upload falhar, a aplicacao externa deve enviar `ABORT_STORE` e
    - enviar `READ_CHUNK` com `P2 = 0, 1, 2, ...` ate ler o tamanho total do ficheiro.
 5. Depois de confirmar que o download foi guardado corretamente, enviar `CONFIRM_DOWNLOAD`.
 
+## Delete seletivo
+
+O comando `DELETE_FILE` apaga apenas o ficheiro indicado em `P1`.
+
+Formato:
+
+    80 61 P1 00 00
+
+Exemplo para apagar o ficheiro de indice 1:
+
+    80 61 01 00 00
+
+Comportamento:
+
+- exige PIN validado;
+- so funciona em `STATE_READY`;
+- exige `P2 = 0x00`;
+- se estiver fora de `STATE_READY`, devolve `6985`;
+- se estiver em `STATE_READY` e o indice nao existir, devolve `6A86`;
+- se `P2 != 0x00`, devolve `6A86`;
+- depois de apagar, compacta os metadados para nao deixar buracos na lista;
+- se apagar o ultimo ficheiro existente, o estado passa para `STATE_EMPTY`.
+
 ## Status words
 
 | SW | Significado |
@@ -89,13 +115,13 @@ Se algum passo do upload falhar, a aplicacao externa deve enviar `ABORT_STORE` e
 | 63Cx | PIN errado; `x` indica tentativas restantes |
 | 63C2 | PIN errado; 2 tentativas restantes |
 | 63C1 | PIN errado; 1 tentativa restante |
-| 6700 | Lc invalido, por exemplo chunk com mais de 200 bytes |
+| 6700 | Lc invalido, por exemplo chunk com mais de 200 bytes ou `DELETE_FILE` com dados |
 | 6982 | PIN necessario |
 | 6983 | PIN bloqueado |
-| 6985 | Estado invalido, por exemplo `FINALIZE_FILE` antes de escrever tudo |
+| 6985 | Estado invalido, por exemplo `FINALIZE_FILE` antes de escrever tudo ou `DELETE_FILE` fora de `STATE_READY` |
 | 6A80 | Dados invalidos, por exemplo nome demasiado grande ou tamanho de ficheiro invalido |
 | 6A84 | Memoria insuficiente |
-| 6A86 | P1/P2 invalido, por exemplo indice de ficheiro inexistente |
+| 6A86 | P1/P2 invalido, por exemplo indice de ficheiro inexistente ou `P2` diferente de zero |
 | 6D00 | INS nao suportado |
 | 6E00 | CLA nao suportado |
 
@@ -106,10 +132,10 @@ A applet permite 3 tentativas de PIN.
 
 | Tentativa | PIN enviado | Resposta | Significado |
 |---:|---|---|---|
-| 1.ª errada | 00000000 | 63C2 | PIN errado, 2 tentativas restantes |
-| 2.ª errada | 00000000 | 63C1 | PIN errado, 1 tentativa restante |
-| 3.ª errada | 00000000 | 6983 | PIN bloqueado |
-| PIN correto após bloqueio | 01020304 | 6983 | PIN continua bloqueado |
+| 1.ª errada | `200000000` | `63C2` | PIN errado, 2 tentativas restantes |
+| 2.ª errada | `00000000` | `63C1` | PIN errado, 1 tentativa restante |
+| 3.ª errada | `00000000` | `6983` | PIN bloqueado |
+| PIN correto após bloqueio | `01020304` | `6983` | PIN continua bloqueado |
 
 Na versão atual da applet não existe comando administrativo para desbloquear o PIN. Em testes, a recuperação é feita apagando e reinstalando a applet.
 
@@ -126,11 +152,15 @@ Verificar PIN `01 02 03 04`:
 
 Iniciar upload:
 
-    80 30 00 00
+    80 30 00 00 00
 
 Cancelar upload parcial:
 
-    80 35 00 00
+    80 35 00 00 00
+
+Apagar ficheiro de indice 1:
+
+    80 61 01 00 00
 
 Consultar estado:
 

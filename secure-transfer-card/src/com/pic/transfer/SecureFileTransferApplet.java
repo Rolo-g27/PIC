@@ -24,6 +24,7 @@ public final class SecureFileTransferApplet extends Applet {
     // 0x40 GET_FILE_INFO: P1 = file index
     // 0x50 READ_CHUNK: P1 = file index, P2 = chunk index
     // 0x60 CONFIRM_DOWNLOAD: clears files after successful download
+    // 0x61 DELETE_FILE: P1 = file index, P2 = 0x00
     // 0x70 WIPE_CARD: manual full clear
     private static final byte INS_GET_STATUS       = (byte) 0x10;
     private static final byte INS_GET_VERSION      = (byte) 0x11;
@@ -40,6 +41,7 @@ public final class SecureFileTransferApplet extends Applet {
     private static final byte INS_GET_FILE_INFO    = (byte) 0x40;
     private static final byte INS_READ_CHUNK       = (byte) 0x50;
     private static final byte INS_CONFIRM_DOWNLOAD = (byte) 0x60;
+    private static final byte INS_DELETE_FILE      = (byte) 0x61;
     private static final byte INS_WIPE_CARD        = (byte) 0x70;
 
     private static final byte PIN_TRY_LIMIT = (byte) 3;
@@ -206,6 +208,11 @@ public final class SecureFileTransferApplet extends Applet {
                 requirePin();
                 wipeCard();
                 userPin.reset();
+                return;
+
+            case INS_DELETE_FILE:
+                requirePin();
+                deleteFile(apdu);
                 return;
 
             case INS_WIPE_CARD:
@@ -483,6 +490,56 @@ public final class SecureFileTransferApplet extends Applet {
         apdu.setOutgoingAndSend((short) 0, len);
     }
 
+    private void deleteFile(APDU apdu) {
+        if (state != STATE_READY) {
+            ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+        }
+
+        byte[] buffer = apdu.getBuffer();
+
+        if (buffer[ISO7816.OFFSET_P2] != (byte) 0x00) {
+            ISOException.throwIt(ISO7816.SW_INCORRECT_P1P2);
+        }
+
+        if (unsigned(buffer[ISO7816.OFFSET_LC]) != (short) 0) {
+            ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
+        }
+
+        byte index = buffer[ISO7816.OFFSET_P1];
+
+        if (!validFileIndex(index)) {
+            ISOException.throwIt(ISO7816.SW_INCORRECT_P1P2);
+        }
+
+        byte lastIndex = (byte) (fileCount - 1);
+        byte current = index;
+
+        while (current < lastIndex) {
+            byte next = (byte) (current + 1);
+
+            fileNameLengths[current] = fileNameLengths[next];
+            Util.arrayCopyNonAtomic(
+                    fileNames,
+                    nameOffset(next),
+                    fileNames,
+                    nameOffset(current),
+                    MAX_NAME_SIZE
+            );
+            fileStartPages[current] = fileStartPages[next];
+            fileStartOffsets[current] = fileStartOffsets[next];
+            fileSizes[current] = fileSizes[next];
+
+            current = next;
+        }
+
+        fileCount = lastIndex;
+        clearFileMetadata(fileCount);
+
+        if (fileCount == (byte) 0) {
+            state = STATE_EMPTY;
+        }
+    }
+
     private void requirePin() {
         if (!userPin.isValidated()) {
             ISOException.throwIt(SW_PIN_REQUIRED);
@@ -592,6 +649,19 @@ public final class SecureFileTransferApplet extends Applet {
         }
 
         return true;
+    }
+
+    private void clearFileMetadata(byte index) {
+        fileNameLengths[index] = (byte) 0;
+        Util.arrayFillNonAtomic(
+                fileNames,
+                nameOffset(index),
+                MAX_NAME_SIZE,
+                (byte) 0x00
+        );
+        fileStartPages[index] = (byte) 0;
+        fileStartOffsets[index] = (short) 0;
+        fileSizes[index] = (short) 0;
     }
 
     private void wipeCard() {
