@@ -16,18 +16,25 @@ PIN inicial de demonstracao:
 
     01 02 03 04
 
+## Modelo de cifra
+
+A aplicacao externa cifra os ficheiros com uma chave simetrica e envia para o cartao os bytes ja cifrados.
+
+O cartao nao calcula a cifra nesta versao. A applet guarda bytes cifrados, devolve bytes cifrados no download e apaga os dados depois de `CONFIRM_DOWNLOAD`.
+
 ## Limites
 
 | Campo | Valor |
 |---|---:|
 | PIN_SIZE | 4 bytes |
-| MAX_FILES | 5 ficheiros |
+| MAX_FILES | 7 ficheiros |
 | MAX_NAME_SIZE | 16 bytes |
+| MAX_FILE_SIZE | 10240 bytes |
 | CHUNK_SIZE | 200 bytes |
 | PAGE_SIZE | 4096 bytes |
-| MAX_PAGES | 12 paginas |
-| Capacidade total | 49152 bytes |
-| Tamanho por ficheiro | 1 a 32767 bytes |
+| MAX_PAGES | 18 paginas |
+| Capacidade total | 73728 bytes |
+| Tamanho por ficheiro | 1 a 10240 bytes |
 
 ## Estados
 
@@ -58,6 +65,10 @@ PIN inicial de demonstracao:
 | WIPE_CARD | 0x70 | 0x00 | 0x00 | nenhum | sem dados |
 
 Todos os comandos sensiveis exigem PIN validado, exceto `GET_STATUS`, `GET_VERSION` e `VERIFY_PIN`.
+
+Na configuracao atual, `GET_VERSION` deve devolver:
+
+    01 00 07 12 01
 
 ## Fluxo de upload
 
@@ -119,7 +130,7 @@ Comportamento:
 | 6982 | PIN necessario |
 | 6983 | PIN bloqueado |
 | 6985 | Estado invalido, por exemplo `FINALIZE_FILE` antes de escrever tudo ou `DELETE_FILE` fora de `STATE_READY` |
-| 6A80 | Dados invalidos, por exemplo nome demasiado grande ou tamanho de ficheiro invalido |
+| 6A80 | Dados invalidos, por exemplo nome demasiado grande ou ficheiro com mais de 10240 bytes |
 | 6A84 | Memoria insuficiente |
 | 6A86 | P1/P2 invalido, por exemplo indice de ficheiro inexistente ou `P2` diferente de zero |
 | 6D00 | INS nao suportado |

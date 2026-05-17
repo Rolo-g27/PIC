@@ -35,7 +35,7 @@ Funcionalidades já implementadas:
 - autenticação por PIN;
 - alteração de PIN;
 - inicialização do armazenamento;
-- carregamento de vários ficheiros pequenos;
+- carregamento de até 7 ficheiros de 10 KB cada;
 - escrita de ficheiros por chunks/APDUs;
 - cancelamento de upload parcial;
 - armazenamento persistente no cartão;
@@ -49,6 +49,12 @@ Funcionalidades já implementadas:
 ## Ideia atual do projeto
 
 A aplicação externa encripta os ficheiros e envia os bytes já encriptados para o cartão.
+
+Limites atuais da applet de transferência:
+
+- 7 ficheiros;
+- 10 KB por ficheiro;
+- 73728 bytes de armazenamento persistente reservado na applet.
 
 O cartão:
 

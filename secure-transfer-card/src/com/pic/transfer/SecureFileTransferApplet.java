@@ -51,12 +51,13 @@ public final class SecureFileTransferApplet extends Applet {
     private static final byte STATE_LOADING = (byte) 0x01;
     private static final byte STATE_READY   = (byte) 0x02;
 
-    private static final byte MAX_FILES = (byte) 5;
+    private static final byte MAX_FILES = (byte) 7;
     private static final byte MAX_NAME_SIZE = (byte) 16;
 
     private static final short PAGE_SIZE = (short) 4096;
-    private static final byte MAX_PAGES = (byte) 12; // 12 * 4096 = 49152 bytes
+    private static final byte MAX_PAGES = (byte) 18; // 18 * 4096 = 73728 bytes
 
+    private static final short MAX_FILE_SIZE = (short) 10240;
     private static final short CHUNK_SIZE = (short) 200;
 
     private static final short SW_PIN_REQUIRED = (short) 0x6982;
@@ -77,6 +78,12 @@ public final class SecureFileTransferApplet extends Applet {
     private final byte[] page9;
     private final byte[] page10;
     private final byte[] page11;
+    private final byte[] page12;
+    private final byte[] page13;
+    private final byte[] page14;
+    private final byte[] page15;
+    private final byte[] page16;
+    private final byte[] page17;
 
     private final byte[] fileNameLengths;
     private final byte[] fileNames;
@@ -123,6 +130,12 @@ public final class SecureFileTransferApplet extends Applet {
         page9 = new byte[PAGE_SIZE];
         page10 = new byte[PAGE_SIZE];
         page11 = new byte[PAGE_SIZE];
+        page12 = new byte[PAGE_SIZE];
+        page13 = new byte[PAGE_SIZE];
+        page14 = new byte[PAGE_SIZE];
+        page15 = new byte[PAGE_SIZE];
+        page16 = new byte[PAGE_SIZE];
+        page17 = new byte[PAGE_SIZE];
 
         fileNameLengths = new byte[MAX_FILES];
         fileNames = new byte[(short) (MAX_FILES * MAX_NAME_SIZE)];
@@ -344,7 +357,7 @@ public final class SecureFileTransferApplet extends Applet {
         short sizeOffset = (short) (cdata + 1 + nameLen);
         short fileSize = Util.getShort(buffer, sizeOffset);
 
-        if (fileSize <= (short) 0) {
+        if (fileSize <= (short) 0 || fileSize > MAX_FILE_SIZE) {
             ISOException.throwIt(ISO7816.SW_WRONG_DATA);
         }
 
@@ -728,6 +741,12 @@ public final class SecureFileTransferApplet extends Applet {
             case 9: return page9;
             case 10: return page10;
             case 11: return page11;
+            case 12: return page12;
+            case 13: return page13;
+            case 14: return page14;
+            case 15: return page15;
+            case 16: return page16;
+            case 17: return page17;
             default:
                 ISOException.throwIt(SW_NOT_ENOUGH_MEMORY);
                 return page0;
