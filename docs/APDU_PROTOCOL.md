@@ -87,6 +87,8 @@ Se algum passo do upload falhar, a aplicacao externa deve enviar `ABORT_STORE` e
 |---:|---|
 | 9000 | Comando executado com sucesso |
 | 63Cx | PIN errado; `x` indica tentativas restantes |
+| 63C2 | PIN errado; 2 tentativas restantes |
+| 63C1 | PIN errado; 1 tentativa restante |
 | 6700 | Lc invalido, por exemplo chunk com mais de 200 bytes |
 | 6982 | PIN necessario |
 | 6983 | PIN bloqueado |
@@ -96,6 +98,21 @@ Se algum passo do upload falhar, a aplicacao externa deve enviar `ABORT_STORE` e
 | 6A86 | P1/P2 invalido, por exemplo indice de ficheiro inexistente |
 | 6D00 | INS nao suportado |
 | 6E00 | CLA nao suportado |
+
+
+### Comportamento observado com PIN errado
+
+A applet permite 3 tentativas de PIN.
+
+| Tentativa | PIN enviado | Resposta | Significado |
+|---:|---|---|---|
+| 1.ª errada | 00000000 | 63C2 | PIN errado, 2 tentativas restantes |
+| 2.ª errada | 00000000 | 63C1 | PIN errado, 1 tentativa restante |
+| 3.ª errada | 00000000 | 6983 | PIN bloqueado |
+| PIN correto após bloqueio | 01020304 | 6983 | PIN continua bloqueado |
+
+Na versão atual da applet não existe comando administrativo para desbloquear o PIN. Em testes, a recuperação é feita apagando e reinstalando a applet.
+
 
 ## Exemplos APDU
 
