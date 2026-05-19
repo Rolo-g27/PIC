@@ -1,0 +1,36 @@
+# Build artifacts
+build/
+*.o
+*.a
+*.so
+*.so.*
+*.dylib
+
+# Executables
+pic-cli
+pic-cli.exe
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.code-workspace
+
+# OS specific
+.DS_Store
+Thumbs.db
+*.stackdump
+
+# Local configuration (don't commit with real credentials)
+config/config.local.ini
+config/*.local.ini
+
+# Downloaded files
+downloads/
+*.decrypted
+
+# Debug
+*.dmp
+core
