@@ -1,4 +1,4 @@
-# Notas para o relatório - smartcard_tool.py
+# Notas para o relatório - smartcard_tool.py (Implementação Inicial)
 ## Objetivo
 O smartcard_tool.py é o componente do projeto responsável pela interface entre o utilizador (no PC) e o smartcard. A sua função é gerir o ciclo de vida do cartão: configuração, carregamento de ficheiros e limpeza após descarga. Foi desenvolvido em Python pela sua simplicidade, compatibilidade com Windows e Linux, e pela disponibilidade da biblioteca pyscard para comunicação PC/SC.
 
@@ -76,3 +76,52 @@ Do lado do Raspberry Pi, falta ainda implementar a desencriptação automática 
 4. desencriptar localmente após o download. 
 
 Esta separação permite que o cartão funcione apenas como meio seguro de transporte, sem necessitar de executar operações criptográficas complexas no Java Card.
+
+
+
+# Mudanças após reunião (20/05)
+## Motivação da Mudança de Python para Java
+Originalmente, a interface com o utilizador foi desenvolvida em Python (`smartcard_tool.py`) pela sua rapidez de prototipagem. No entanto, para garantir uma integração nativa e "direta" com a `SecureFileTransferApplet.java`, optou-se por transpor o executável do PC para Java utilizando a biblioteca **javax.smartcardio**.
+
+## Detalhes e Vantagens
+1. Ao utilizar Java em ambos os lados (PC e Smartcard), eliminamos problemas de conversão de tipos de dados (como a gestão de `short` e `byte`), garantindo que a lógica de processamento de ficheiros seja idêntica no Host e na Applet.
+2. O executável Java comunica sem intermediários com o método `process(APDU apdu)` da Applet. Cada opção do menu Java aciona diretamente as funções internas programadas no cartão (ex: `INS_ADD_FILE_HEADER` no PC invoca `addFileHeader()` no chip).
+3. A transição permitiu manter a estrutura de carregamento múltiplo de ficheiros e a segmentação em chunks de 200 bytes, respeitando os limites de hardware do cartão ACOSJ.
+4. O controlo de estado do PIN e o ciclo de vida da sessão (Init -> Header -> Chunks -> Finalize) estão agora blindados por um contrato de comunicação (INS bytes) partilhado entre os dois ficheiros `.java`.
+
+## Impacto na Arquitetura
+O sistema passou de um modelo híbrido para um modelo de Sistema Distribuído em Java, onde o `SmartcardTool.java` funciona como o Front-end de gestão e a `SecureFileTransferApplet.java` como o Back-end de armazenamento seguro, conectados pelo protocolo padrão ISO 7816-4.
+
+
+## Interface Gráfica (GUI) em Java Swing
+### Objetivo e Design
+Para melhorar a usabilidade e a organização do projeto no lado do PC, foi projetada uma interface gráfica utilizando a biblioteca **Java Swing**. Esta mudança visa substituir a interação via terminal (CLI) por uma janela centralizada que organiza as operações da `SecureFileTransferApplet` em botões e componentes visuais.
+
+A interface inclui:
+* **Área de Log:** Substitui o output do terminal, permitindo visualizar o histórico de APDUs e respostas do cartão em tempo real.
+* **Diálogos Nativos:** Utilização de `JFileChooser` para a seleção múltipla de ficheiros e `JOptionPane` para a introdução segura do PIN, reduzindo erros de sintaxe por parte do utilizador.
+* **Gestão de Estado:** Os botões são habilitados ou desabilitados dinamicamente com base no estado de ligação e autenticação (PIN) do smartcard.
+
+### Estado da Implementação e Validação
+Atualmente, a lógica da GUI foi desenvolvida de forma modular, mas **ainda não foi integrada no executável principal do projeto**. Esta decisão foi tomada para que:
+1. A estrutura da interface e o fluxo de janelas possam ser **validados e verificados com o professor** antes da implementação final.
+2. Seja possível confirmar se o layout e as funcionalidades apresentadas (como o carregamento múltiplo e a limpeza de memória) correspondem às expectativas do projeto.
+
+Após o feedback do professor, a lógica contida na `SmartcardTool.java` será fundida com a `SmartcardGui.java` para criar o executável final consolidado.
+
+
+## Recetor no Raspberry Pi: Transição para C (raspberry_receiver.c)
+### Estratégia de Implementação e Conectividade
+Para a fase final de integração no Raspberry Pi, o recetor foi mudado de Python para C, utilizando a biblioteca **PCSC-Lite** (`winscard.h`). Esta mudança é fundamental por dois motivos:
+1. **Compatibilidade:** Garante que o código de comunicação com o smartcard possa ser integrado diretamente no software de baixo nível desenvolvido pelos restantes membros do grupo.
+2. **Performance e Controlo:** O uso de C permite um maior controlo sobre o protocolo de transmissão APDU e a gestão de buffers de memória no Raspberry Pi.
+
+### Decisões de Engenharia e Segurança
+* **Camada de Transporte Mínima:** Seguindo a orientação do professor, a minha componente em C foca-se exclusivamente na segurança e no transporte APDU (Estabelecimento de contexto [registo da aplicação perante o serviço do sistema operativo (pcscd) para obter permissão de acesso ao hardware. Sem este "handle" de contexto, o programa não consegue listar leitores nem comunicar com o smartcard.], Conexão ao leitor, Seleção da Applet e Validação de PIN).
+* **Comunicação:** Os comandos de instrução (`INS_VERIFY_PIN`, `INS_READ_CHUNK`, `INS_CONFIRM`) são idênticos aos definidos no emissor Java e na Applet, garantindo que o sistema é agnóstico à linguagem de programação do host.
+* **Hierarquia de Operações:** O código garante que nenhuma leitura de dados ocorre sem a validação bem-sucedida do PIN pela Applet, protegendo o material criptográfico contra acessos não autorizados no Raspberry Pi.
+
+### Estado de Integração (Ponto de Situação)
+Atualmente, o esqueleto do recetor em C está funcional e validado na sua base de conectividade. A lógica de escrita em disco (`fwrite`) e a gestão de ficheiros no sistema operativo local foram delegadas para a fase de integração com os colegas. 
+
+**Nota:** O comando final de limpeza do cartão (`INS_CONFIRM_DOWNLOAD`) apenas será disparado após a confirmação de que os colegas gravaram os dados com sucesso, fechando o ciclo de vida da transferência segura.

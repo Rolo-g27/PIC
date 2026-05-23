@@ -1,9 +1,0 @@
-{
-  "app_aid": "A00000006203010D0301",
-  "cla": 128,
-  "pin_size": 4,
-  "chunk_size": 200,
-  "max_name_size": 16,
-  "max_retries": 3,
-  "timeout_seconds": 5
-}
