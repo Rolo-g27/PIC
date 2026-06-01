@@ -125,3 +125,16 @@ Para a fase final de integração no Raspberry Pi, o recetor foi mudado de Pytho
 Atualmente, o esqueleto do recetor em C está funcional e validado na sua base de conectividade. A lógica de escrita em disco (`fwrite`) e a gestão de ficheiros no sistema operativo local foram delegadas para a fase de integração com os colegas. 
 
 **Nota:** O comando final de limpeza do cartão (`INS_CONFIRM_DOWNLOAD`) apenas será disparado após a confirmação de que os colegas gravaram os dados com sucesso, fechando o ciclo de vida da transferência segura.
+
+## Implementações Recentes + Encriptação 
+### Integração da GUI com a tool Java
+Nesta fase, a interface gráfica `SmartcardGui.java` passou a estar ligada diretamente à lógica de `SmartcardTool.java`. Os botões da janela já executam as operações reais do cartão: ligação ao leitor, validação do PIN, carregamento múltiplo de ficheiros e limpeza do cartão. A área de log foi mantida para mostrar ao utilizador o estado das operações sem depender da consola.
+
+### Encriptação dos ficheiros no lado do PC
+O fluxo de carregamento passou a incluir encriptação antes do envio para o smartcard. O ficheiro é lido em memória, é gerado um IV aleatório de 16 bytes por ficheiro, e os dados são cifrados com `AES-128-CBC` e padding `PKCS#7`. O payload enviado para o cartão passa a ter o formato `[IV][dados cifrados]`, permitindo que o Raspberry Pi faça a descodificação posterior com a mesma chave.
+
+### Gestão da chave AES na fase de setup
+Para evitar uma chave hardcoded no código, foi adicionada uma fase de setup no arranque da tool. A `SmartcardTool` cria automaticamente uma chave AES de 16 bytes na primeira execução, guarda-a num ficheiro partilhável (`pic_aes_key.hex`) e reutiliza-a nas execuções seguintes. Esse ficheiro pode depois ser lido no Raspberry Pi, garantindo que ambos os lados usam exatamente a mesma chave.
+
+### Ajustes técnicos feitos nesta etapa
+Também foi adaptada a tool para funcionar sem interação de terminal quando usada pela GUI, com tratamento de erros por APDU e verificação de status words no upload e na limpeza do cartão. A solução foi validada com compilação local dos ficheiros Java principais.

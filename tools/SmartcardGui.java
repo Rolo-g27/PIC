@@ -1,7 +1,6 @@
 import javax.swing.*;
 import java.awt.*;
 import java.io.File;
-import javax.smartcardio.*;
 
 /*
  * SmartcardGui.java
@@ -20,6 +19,10 @@ public class SmartcardGui extends JFrame {
     private SmartcardTool core; 
     private JTextArea logArea;
     private JLabel statusLabel;
+    private JButton btnConnect;
+    private JButton btnPin;
+    private JButton btnUpload;
+    private JButton btnClear;
 
     public SmartcardGui() { // Inicializa a interface gráfica e a lógica do cartão
         core = new SmartcardTool();
@@ -35,7 +38,7 @@ public class SmartcardGui extends JFrame {
         // Painel Superior: Estado e Conexão
         JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         statusLabel = new JLabel("Estado: Desconectado");
-        JButton btnConnect = new JButton("Ligar ao Cartão");
+        btnConnect = new JButton("Ligar ao Cartão");
         btnConnect.addActionListener(e -> handleConnect());
         topPanel.add(btnConnect);
         topPanel.add(statusLabel);
@@ -49,9 +52,9 @@ public class SmartcardGui extends JFrame {
 
         // Painel Inferior: Ações (Botões organizados)
         JPanel botPanel = new JPanel(new GridLayout(1, 3, 5, 5));
-        JButton btnPin = new JButton("Validar PIN");
-        JButton btnUpload = new JButton("Carregar Ficheiros");
-        JButton btnClear = new JButton("Limpar Cartão");
+        btnPin = new JButton("Validar PIN");
+        btnUpload = new JButton("Carregar Ficheiros");
+        btnClear = new JButton("Limpar Cartão");
 
         btnPin.addActionListener(e -> handlePin());
         btnUpload.addActionListener(e -> handleUpload());
@@ -60,6 +63,7 @@ public class SmartcardGui extends JFrame {
         botPanel.add(btnPin);
         botPanel.add(btnUpload);
         botPanel.add(btnClear);
+        setActionButtonsEnabled(false);
 
         // Adicionar ao JFrame com espaçamento e organização clara entre os componentes
         add(topPanel, BorderLayout.NORTH);
@@ -70,10 +74,13 @@ public class SmartcardGui extends JFrame {
     }
 
     private void handleConnect() { // Tenta conectar ao cartão usando a lógica do SmartcardTool e atualiza o estado na interface
-        if (core.connect()) {
+        log("A ligar ao leitor e ao applet...");
+        if (core.connect(false)) {
             statusLabel.setText("Estado: Conectado (Applet OK)");
+            setActionButtonsEnabled(true);
             log("Conectado ao leitor e Applet selecionada.");
         } else {
+            statusLabel.setText("Estado: Desconectado");
             log("Erro ao conectar.");
         }
     }
@@ -99,22 +106,34 @@ public class SmartcardGui extends JFrame {
             for(File f : files) paths.append(f.getAbsolutePath()).append(",");
             
             log("A carregar " + files.length + " ficheiros...");
-            core.uploadFiles(paths.toString());
-            log("Operação de carga concluída.");
+            if (core.uploadFiles(paths.toString())) {
+                log("Operação de carga concluída.");
+            } else {
+                log("Falha na operação de carga.");
+            }
         }
     }
 
     private void handleWipe() {
         int res = JOptionPane.showConfirmDialog(this, "Deseja apagar todos os dados?");
         if(res == JOptionPane.YES_OPTION) {
-            // Chama a lógica de wipe/confirm download
-            log("Cartão limpo.");
+            if (core.wipeCard()) {
+                log("Cartão limpo.");
+            } else {
+                log("Falha ao limpar o cartão.");
+            }
         }
     }
 
     private void log(String msg) { // Adiciona mensagens ao JTextArea para feedback visual das operações realizadas, 
     // facilitando o acompanhamento do estado e resultados das ações do usuário
         logArea.append("> " + msg + "\n");
+    }
+
+    private void setActionButtonsEnabled(boolean enabled) {
+        btnPin.setEnabled(enabled);
+        btnUpload.setEnabled(enabled);
+        btnClear.setEnabled(enabled);
     }
 
     public static void main(String[] args) { // Inicia a interface gráfica
