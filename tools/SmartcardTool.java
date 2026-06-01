@@ -11,6 +11,8 @@ import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.PosixFilePermissions;
+import java.io.IOException;
 
 /**
  * SmartcardTool.java
@@ -25,9 +27,10 @@ public class SmartcardTool {
     private static final int PIN_SIZE = 4; // Tamanho do PIN em bytes
     private static final int CHUNK_SIZE = 200; // Tamanho máximo de cada bloco de dados enviados 
     private static final int MAX_NAME_SIZE = 16; // Limita nome do ficheiro a 16 caracteres 
-    private static final int AES_KEY_SIZE = 16;
-    private static final int AES_IV_SIZE = 16;
-    private static final Path AES_KEY_FILE = Paths.get(System.getProperty("user.dir"), "pic_aes_key.hex");
+    private static final int AES_KEY_SIZE = 16; // Tamanho da chave AES em bytes
+    private static final int AES_IV_SIZE = 16; // Tamanho do IV para AES (16 bytes para AES-128)
+    private static final Path AES_KEY_FILE = Paths.get(System.getProperty("user.dir"), "pic_aes_key.hex"); 
+    // Ficheiro local para armazenar a chave AES, para persistência entre execuções e compartilhamento entre PC e Raspberry
 
     // INS Bytes (Coincidem com SecureFileTransferApplet.java) + decide que função usar
     private static final byte INS_VERIFY_PIN       = (byte) 0x20;
@@ -38,20 +41,30 @@ public class SmartcardTool {
     private static final byte INS_FINALIZE_STORE   = (byte) 0x34;
     private static final byte INS_WIPE_CARD        = (byte) 0x70;
 
-    private Card card;
+    private Card card; // Representa o cartão conectado, usado para enviar comandos e receber respostas
     private CardChannel channel; // Canal de comunicação com o cartão
     private boolean pinValidated = false; // Estado local do PIN 
     private Scanner scanner = new Scanner(System.in); // Para leitura de input do usuário
-    private boolean connected = false;
-    private final SecureRandom secureRandom = new SecureRandom();
-    private SecretKeySpec cachedAesKey;
+    private boolean connected = false; // Inicialmente falso, é atualizado para true após uma conexão bem-sucedida e seleção da applet
+    private final SecureRandom secureRandom = new SecureRandom(); // Para gerar chaves AES e IVs de forma segura
+    private SecretKeySpec cachedAesKey; // Cache da chave AES para evitar recarregamentos desnecessários durante a execução do programa
 
-    public SmartcardTool() {
+    public SmartcardTool() { // Construtor que prepara o ambiente, incluindo a geração ou carregamento da chave AES necessária 
+    // para o processo de upload de ficheiros, garantindo que a ferramenta esteja pronta para uso imediato após a inicialização
         try {
             loadAesKey();
         } catch (Exception e) {
             System.out.println("[ERRO] Falha ao preparar a chave AES: " + e.getMessage());
         }
+    }
+
+    public void disconnect() { // Desconecta do cartão, garantindo que os recursos sejam libertados corretamente,  
+    // e atualiza o estado de conexão para refletir a desconexão
+        try {
+            if (card != null) card.disconnect(false);
+        } catch (CardException e) {
+        }
+        connected = false;
     }
 
     public boolean connect() {
@@ -121,7 +134,9 @@ public class SmartcardTool {
         return verifyPinFromGui(pinHex);
     }
 
-    public boolean verifyPinFromGui(String pinHex) {
+    public boolean verifyPinFromGui(String pinHex) { // Versão da função verifyPin que recebe o PIN como argumento, para ser usada pela interface gráfica, 
+    // permitindo que o processo de validação do PIN seja acionado tanto pelo menu de texto quanto pela interface gráfica, 
+    // mantendo a lógica de validação centralizada e consistente
         if (pinHex.length() != PIN_SIZE * 2) {
             System.out.println("[ERRO] PIN inválido.");
             return false;
@@ -158,14 +173,16 @@ public class SmartcardTool {
             // para que ele possa preparar a memória e resetar estados internos se necessário
             checkSW(channel.transmit(new CommandAPDU(CLA, INS_INIT_STORE, 0, 0)).getSW(), "INIT_STORE");
 
-            SecretKeySpec aesKey = loadAesKey();
+            SecretKeySpec aesKey = loadAesKey(); // Carrega a chave AES para criptografar os ficheiros antes de enviar, 
+            // garantindo que os dados sejam protegidos durante a transferência para o cartão
 
             for (String pathStr : paths) {
                 byte[] data = Files.readAllBytes(Paths.get(pathStr.trim()));
                 String name = Paths.get(pathStr.trim()).getFileName().toString();
                 if (name.length() > MAX_NAME_SIZE) name = name.substring(0, MAX_NAME_SIZE);
 
-                byte[] encryptedFile = encryptFile(data, aesKey);
+                byte[] encryptedFile = encryptFile(data, aesKey); // Criptografa o conteúdo do ficheiro usando AES-CBC com a chave carregada, 
+                // para garantir a confidencialidade dos dados armazenados no cartão
 
                 // 2. Header: [len_nome][nome][tamanho_short] - Envia um bloco inicial com o nome do ficheiro e o seu tamanho total, 
                 // para que o cartão possa criar a estrutura de armazenamento adequada
@@ -209,18 +226,22 @@ public class SmartcardTool {
         }
     }
 
-    private SecretKeySpec loadAesKey() throws Exception {
+    private SecretKeySpec loadAesKey() throws Exception { // Carrega a chave AES de uma fonte configurada (propriedade do sistema, variável de ambiente ou ficheiro), 
+    // e prepara para uso em operações de criptografia, garantindo que a chave seja do tamanho correto e esteja disponível para as funções de upload de ficheiros
         if (cachedAesKey != null) {
             return cachedAesKey;
         }
-
-        String keyHex = System.getProperty("pic.aes.key");
+        
+        String keyHex = System.getProperty("pic.aes.key");  
+        // Primeiro tenta obter a chave de uma propriedade do sistema, 
+        // permitindo que seja passada como argumento na linha de comando com -Dpic.aes.key=<hex16bytes>
         if (keyHex == null || keyHex.isBlank()) {
             keyHex = System.getenv("PIC_AES_KEY_HEX");
         }
 
         if (keyHex == null || keyHex.isBlank()) {
-            keyHex = loadOrCreateKeyFile();
+            keyHex = loadOrCreateKeyFile(); // Se não estiver definida em propriedades ou variáveis de ambiente, 
+            // tenta carregar num ficheiro local, ou criar um novo se o ficheiro não existir
         }
 
         if (keyHex == null || keyHex.isBlank()) {
@@ -232,11 +253,14 @@ public class SmartcardTool {
             throw new Exception("A chave AES deve ter 16 bytes (32 caracteres hex).");
         }
 
-        cachedAesKey = new SecretKeySpec(keyBytes, "AES");
+        SecretKeySpec keySpec = new SecretKeySpec(keyBytes, "AES"); // Prepara o objeto de chave AES para uso em criptografia
+        Arrays.fill(keyBytes, (byte) 0);
+        cachedAesKey = keySpec;
         return cachedAesKey;
     }
 
-    public String getAesKeyHex() throws Exception {
+    public String getAesKeyHex() throws Exception { // Função auxiliar para obter a chave AES em formato hexadecimal, útil para exibir ou compartilhar a chave de forma legível, 
+    // especialmente para configurar a mesma chave no Raspberry Pi, garantindo que o processo de configuração seja mais fácil e menos propenso a erros de formatação
         byte[] keyBytes = loadAesKey().getEncoded();
         StringBuilder builder = new StringBuilder(keyBytes.length * 2);
         for (byte value : keyBytes) {
@@ -245,11 +269,15 @@ public class SmartcardTool {
         return builder.toString();
     }
 
-    public String getAesKeyFilePath() {
+    public String getAesKeyFilePath() { // Retorna o caminho absoluto do ficheiro onde a chave AES é armazenada, 
+    // para que o usuário possa localizar facilmente o ficheiro e copiá-lo para o Raspberry Pi, 
+    // garantindo que a mesma chave seja usada em ambos os lados para a criptografia dos ficheiros
         return AES_KEY_FILE.toAbsolutePath().toString();
     }
 
-    private String loadOrCreateKeyFile() throws Exception {
+    private String loadOrCreateKeyFile() throws Exception { // Verifica se o ficheiro de chave AES existe. 
+    // Se existir, lê e retorna a chave. Se não existir, gera uma nova chave, salva no ficheiro e retorna a chave gerada, 
+    // garantindo que a chave seja persistente entre execuções e possa ser compartilhada entre o PC e o Raspberry Pi de forma segura
         if (Files.exists(AES_KEY_FILE)) {
             return Files.readString(AES_KEY_FILE, StandardCharsets.US_ASCII).trim();
         }
@@ -263,20 +291,29 @@ public class SmartcardTool {
         }
 
         Files.writeString(
-                AES_KEY_FILE,
-                builder.toString(),
-                StandardCharsets.US_ASCII,
-                StandardOpenOption.CREATE,
-                StandardOpenOption.TRUNCATE_EXISTING,
-                StandardOpenOption.WRITE
+            AES_KEY_FILE,
+            builder.toString(),
+            StandardCharsets.US_ASCII,
+            StandardOpenOption.CREATE,
+            StandardOpenOption.TRUNCATE_EXISTING,
+            StandardOpenOption.WRITE
         );
+
+        try {
+            Files.setPosixFilePermissions(AES_KEY_FILE, PosixFilePermissions.fromString("rw-------"));
+        } catch (UnsupportedOperationException | IOException e) {
+            // ignore on platforms without POSIX
+        }
 
         System.out.println("[SETUP] Nova chave AES criada em: " + AES_KEY_FILE.toAbsolutePath());
         System.out.println("[SETUP] Copia este ficheiro para o Raspberry para usar a mesma chave.");
+        Arrays.fill(keyBytes, (byte)0);
         return builder.toString();
     }
-
-    private byte[] encryptFile(byte[] plainData, SecretKeySpec aesKey) throws Exception {
+    
+    private byte[] encryptFile(byte[] plainData, SecretKeySpec aesKey) throws Exception { // Criptografa os dados do ficheiro usando AES-CBC com a chave fornecida,
+    // gerando um IV aleatório para cada ficheiro, e retornando um payload que inclui o IV seguido dos dados criptografados, 
+    // garantindo a confidencialidade dos dados armazenados no cartão
         byte[] iv = new byte[AES_IV_SIZE];
         secureRandom.nextBytes(iv);
 
@@ -290,7 +327,10 @@ public class SmartcardTool {
         return payload;
     }
 
-    public boolean wipeCard() {
+    public boolean wipeCard() { // Envia um comando para limpar o cartão, mas somente se o PIN tiver sido validado, para evitar que alguém apague os dados do cartão sem autorização. 
+    // Se o comando for bem-sucedido, reseta o estado local do PIN para false, 
+    // exigindo que o user valide o PIN novamente para realizar outras operações, 
+    // garantindo uma camada adicional de segurança após a limpeza do cartão.
         if (!pinValidated) {
             System.out.println("[ERRO] Valide o PIN primeiro.");
             return false;

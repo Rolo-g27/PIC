@@ -1,6 +1,7 @@
 import javax.swing.*;
 import java.awt.*;
 import java.io.File;
+import java.util.Arrays;
 
 /*
  * SmartcardGui.java
@@ -102,11 +103,11 @@ public class SmartcardGui extends JFrame {
         
         if(returnVal == JFileChooser.APPROVE_OPTION) {
             File[] files = chooser.getSelectedFiles();
-            StringBuilder paths = new StringBuilder();
-            for(File f : files) paths.append(f.getAbsolutePath()).append(",");
-            
+            String[] selected = Arrays.stream(files).map(File::getAbsolutePath).toArray(String[]::new);
+            String paths = String.join(",", selected);
+
             log("A carregar " + files.length + " ficheiros...");
-            if (core.uploadFiles(paths.toString())) {
+            if (core.uploadFiles(paths)) {
                 log("Operação de carga concluída.");
             } else {
                 log("Falha na operação de carga.");
