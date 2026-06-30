@@ -1,0 +1,100 @@
+./public index.html
+
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <title>Leitor de Cartão Inteligente</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 50px; text-align: center; }
+        input, button { padding: 10px; font-size: 16px; margin: 5px; cursor: pointer; }
+        #mensagem { margin-top: 20px; font-weight: bold; }
+        
+        /* A área de download começa escondida (display: none) */
+        #areaDownload { margin-top: 30px; display: none; } 
+    </style>
+</head>
+<body>
+
+    <h2>Acesso Seguro</h2>
+    
+    <input type="password" id="pinInput" placeholder="Introduza o PIN (4 dígitos)" maxlength="4">
+    <button onclick="validarPin()">Entrar</button>
+
+    <div id="mensagem"></div>
+
+    <div id="areaDownload">
+        <hr style="margin: 20px 0; border: 0; border-top: 1px solid #ccc;">
+        <h3>Ações Disponíveis</h3>
+        <button onclick="descarregarFicheiro()">Descarregar Todos os Ficheiros</button>
+    </div>
+
+    <script>
+        // Variável global para memorizar o PIN (o C precisa dele para o download)
+        let pinValidado = "";
+
+        async function validarPin() {
+            const pin = document.getElementById('pinInput').value;
+            const divMensagem = document.getElementById('mensagem');
+            const areaDownload = document.getElementById('areaDownload');
+            
+            divMensagem.style.color = "black";
+            divMensagem.innerText = "A comunicar com o cartão...";
+            areaDownload.style.display = "none"; // Esconde caso houvesse sucesso anterior
+
+            try {
+                const resposta = await fetch('/api/verificar-pin', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pin: pin })
+                });
+
+                const dadosJSON = await resposta.json();
+
+                if (dadosJSON.estado === "êxito") {
+                    divMensagem.style.color = "green";
+                    divMensagem.innerText = dadosJSON.msg; 
+                    
+                    // Memoriza o PIN e mostra a secção de download
+                    pinValidado = pin;
+                    areaDownload.style.display = "block";
+                } else {
+                    divMensagem.style.color = "red";
+                    divMensagem.innerText = dadosJSON.msg; 
+                }
+            } catch (erro) {
+                divMensagem.style.color = "red";
+                divMensagem.innerText = "Falha de ligação ao servidor Node.js.";
+            }
+        }
+
+        async function descarregarFicheiro() {
+            const divMensagem = document.getElementById('mensagem');
+            divMensagem.style.color = "black";
+            divMensagem.innerText = "A extrair os ficheiros do cartão...";
+
+            try {
+                const resposta = await fetch('/api/descarregar', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    // Enviamos novamente o PIN guardado porque a sessão do C foi fechada
+                    body: JSON.stringify({ pin: pinValidado })
+                });
+
+                const dadosJSON = await resposta.json();
+
+                if (dadosJSON.estado === "êxito") {
+                    divMensagem.style.color = "green";
+                    divMensagem.innerText = dadosJSON.msg;
+                } else {
+                    divMensagem.style.color = "red";
+                    divMensagem.innerText = dadosJSON.msg;
+                }
+            } catch (erro) {
+                divMensagem.style.color = "red";
+                divMensagem.innerText = "Falha de ligação ao servidor ao tentar descarregar.";
+            }
+        }
+    </script>
+</body>
+</html>
